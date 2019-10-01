@@ -9,73 +9,166 @@ from matplotlib.animation import FuncAnimation
 import numpy as np
 from aircraft import Aircraft
 from vertiports import Vertiports
-
+import random
+random.seed(4)
 
 
 # ---------- PART 1: Globals
-
+plt.rcParams['savefig.bbox'] = 'tight'
 n_agents = 20
 my_dpi = 96
-# Writer = matplotlib.animation.writers['ffmpeg']
-# writer = Writer(fps=2.5, metadata=dict(artist='Me'), bitrate=1800)
-fig = plt.figure(figsize=(2000/my_dpi, 1600/my_dpi), dpi=my_dpi)
+Writer = matplotlib.animation.writers['ffmpeg']
+writer = Writer(fps=33, metadata=dict(artist='Me'), bitrate=1800)
+fig = plt.figure(figsize=(2000/my_dpi, 1600/my_dpi), dpi=my_dpi,frameon=False)
+fig.set_tight_layout('True')
 img = plt.imread("mapimage.jpeg")
-my_palette = plt.cm.get_cmap("Set2",n_agents)
+my_palette = plt.cm.get_cmap("tab10",n_agents)
 frames = 100
 ax = plt.subplot()
 ax.imshow(img,extent=[-15,15,-10,10])
 ax.set_xlim(-15,15)
 ax.set_ylim(-10,10)
+ax.axis('tight')
+# ax.axis('off')
 plt.hsv()
 SF_GPS = (37.773972,-122.431297)
 prev_time= 0
+j = 0
 
 
 def update(i):
-	global prev_time
-	artist_array = []
-	for v_i in vehicle_array:
-		artist_array += vehicle_array[v_i].simulate(i-prev_time)
-	prev_time = i
-	return artist_array
+    global prev_time, j, vehicle_queue, verts
+    dt = 0.2
+    print(i)
+    loiter_dict = dict([[verts.findTower_ind(allowed_ports[2]), set()], [verts.findTower_ind(second_tower[2]), set()]])
+    land_s = False
+    # print(open_slots)
+    if time_policy:
+        t_i = i*dt
+        if time_policy.get(t_i):
+            # Usable cache of 8 aircraft
+            for v_i in time_policy[t_i]:
+                if len(verts.findTower_ind(time_policy[t_i][v_i][-1]).vehicle_array) < 8:
+                    track = verts.convertTrack(time_policy[t_i][v_i])
+                    vehicle_array.append(Aircraft(loc=tuple(verts.array[time_policy[t_i][v_i][0]].loc_gps)+(100,),POV_center=SF_GPS,col=(0,1,0),ax=ax,track=track,track_col=my_palette(j),land_tower=verts.findTower(time_policy[t_i][v_i][-1]),land_wp=time_policy[t_i][v_i][-1]))
+                    verts.findTower_ind(time_policy[t_i][v_i][-1]).add_vehicle(vehicle_array[-1])
+                    j += 1
+                else:
+                    track = verts.convertTrack(time_policy[t_i][v_i])
+                    vehicle_queue.append((v_i,tuple(verts.array[time_policy[t_i][v_i][0]].loc_gps)+(100,),track,verts.findTower(time_policy[t_i][v_i][-1]),time_policy[t_i][v_i][-1],time_policy[t_i][v_i][-1]))
+        else:
+            for v_i,v_q in enumerate(vehicle_queue):
+                if len(verts.findTower_ind(v_q[5]).vehicle_array) < 8:
+                    v_q = vehicle_queue.pop(v_i)
+                    vehicle_array.append(Aircraft(loc=v_q[1],POV_center=SF_GPS,col=(0,1,0),ax=ax,track=v_q[2],track_col=my_palette(j),land_tower=v_q[3],land_wp=v_q[4]))
+                    verts.findTower_ind(v_q[5]).add_vehicle(vehicle_array[-1])
+                    j += 1
+    if i == 280:
+        pass
+    artist_array = []
+    landed_drones = []
+    for t_i in verts.towers:
+        if t_i.allocating_flag:
+            if t_i.no_active == 0:
+                t_i.queue_full = True
+                t_i.activeRequest()
+
+    for t_i in verts.towers:
+        out_art = t_i.towerUpdate()
+        if out_art: artist_array.append(out_art)
+    clear_requests = []
+    for ind, v_i in enumerate(vehicle_array):
+        if verts.findTower_ind(v_i.land_wp).active_request:
+            if ind+1 in verts.findTower_ind(v_i.land_wp).active_request['Allocate']:
+                land_s = verts.array[verts.findTower_ind(v_i.land_wp).landWaypoint(ind)].loc_xy
+                clear_requests.append(verts.findTower_ind(v_i.land_wp))
+                # verts.findTower_ind(v_i.land_wp).no_active += 1
+        artist_array += v_i.simulate(dt, land_signal=land_s, operating_number=len(vehicle_array))
+        if v_i.loitering:
+            loiter_dict[verts.findTower_ind(v_i.land_wp)].add(verts.findTower_ind(v_i.land_wp).vehicle_index[v_i])
+            v_i.loitering = False
+        land_s = False
+        if v_i.kill:
+            verts.findTower_ind(v_i.land_wp).requestLanded()
+            landed_drones.append(v_i)
+            loiter_dict[verts.findTower_ind(v_i.land_wp)].discard(verts.findTower_ind(v_i.land_wp).vehicle_index[v_i])
+            assert verts.findTower_ind(v_i.land_wp).no_active >= 0
+    for c_i in clear_requests:
+        c_i.no_active = clear_requests.count(c_i)
+
+    for v_i in landed_drones:
+        verts.findTower_ind(v_i.land_wp).remove_vehicle(v_i)
+        vehicle_array.remove(v_i)
+    # f = open('loiter_log.txt',"a")
+    # f.write(str(i) + "|\t")
+    # for l_i in loiter_dict:
+        # f.write(str(loiter_dict[l_i])+", "+str(l_i.avail_slots)+", "+str(l_i.no_active)+"|\t")
+    # f.write("\n")
+    prev_time = i
+
+    return artist_array
+
+def schedules(filename):
+    policy = dict()
+    vehicles = set()
+    veh_no = 0
+    start_time = 21633
+    with open(filename) as fp:
+        for line in fp:
+            line = line.split(',')
+            if line[2] not in allowed_ports+second_tower:
+                line[2] = random.choice(allowed_ports+second_tower)
+            policy[int(float(line[0]))-start_time] = dict({veh_no:line[1:3]})
+            vehicles.add(veh_no)
+            veh_no += 1
+    return vehicles, policy
 
 
 def policies(filename):
-	policy = dict()
-	vehicles = set()
-	with open(filename) as fp:
-		for line in fp:
-			line = line.split()
-			if 'Time:' in line:
-				time = int(line[1])
-				policy[time] = dict()
-			else:
-				policy[time][line[0]] = line[1:]
-				vehicles.add(line[0])
-	return vehicles, policy
+    policy = dict()
+    vehicles = set()
+    with open(filename) as fp:
+        for line in fp:
+            line = line.split()
+            if 'Time:' in line:
+                time = int(line[1])
+            else:
+                if policy.get(line[0]):
+                    policy[line[0]][time] = line[1:]
+                else:
+                    policy[line[0]] = dict()
+                    policy[line[0]][time] = line[1:]
+                vehicles.add(line[0])
+    return vehicles, policy
 
+
+no_towers = 2
 verts = Vertiports(POV_center=SF_GPS)
 verts.addPorts('Scenarios/areacre.txt')
-vehicles, policy = policies('Scenarios/policy.txt')
-vehicle_array = dict()
+# f = open('loiter_log.txt',"w")
+verts.towerClusters(10)
+verts.plotTowers(ax)
+time_policy = []
+# vehicles, policy = policies('Scenarios/policy.txt')
+allowed_ports = ['WP52','WP555','WP322','WP848']
+second_tower = ['WP802','WP989','WP778','WP308']
+verts.findTower_ind(allowed_ports[2]).towerSchedules('Scenarios/test_medium19.csv',allowed_ports)
+verts.findTower_ind(second_tower[2]).towerSchedules('Scenarios/test_medium40_csv.csv',second_tower)
+
+vehicles, time_policy = schedules('Scenarios/scn_UAM_testNewVT.trp')
+vehicle_array = []
+vehicle_queue = []
 i = 0
-for v_i in vehicles:
-	track = verts.convertTrack(policy[0][v_i])
-	vehicle_array[v_i] = Aircraft(loc=tuple(verts.array[policy[0][v_i][0]].loc_gps)+(100,), POV_center=SF_GPS,col=(0,1,0),ax=ax,track=track,track_col=my_palette(i))
-	i+=1
+if time_policy:
+    pass
+else:
+    for v_i in vehicles:
+        track = verts.convertTrack(policy[v_i])
+        vehicle_array[v_i] = Aircraft(loc=tuple(verts.array[policy[v_i][0][0]].loc_gps)+(100,), POV_center=SF_GPS,col=(0,1,0),ax=ax,track=track,track_col=my_palette(i))
+        i+=1
 
-# vehicles = []
-# vehicles.append(Aircraft(loc=(37.756800,-122.434700,100),POV_center=SF_GPS,ax=ax))
-# vehicles.append(Aircraft(loc=(37.33254, -121.88718,100),POV_center=SF_GPS,ax=ax))
-# art.resizeAircraft(ax,2)
-# vehicles[0].moveAircraft([5,5])
-# vehicles[1].updateColor((0,1,0))
-# vehicle_array['kp000'].simulate(100)
-ani = FuncAnimation(fig, update, frames=250, interval=200, blit=True)
-plt.show(block=True)
+# ani = FuncAnimation(fig, update, frames=1500, interval=0.04, blit=True,repeat=False)
+ani = FuncAnimation(fig, update, frames=1500, interval=0.04,repeat=False)
+ani.save('Two_tower_allocation_decen.mp4',writer = writer)
 # plt.show(block=True)
-
-
-
-# ---------- PART 2:
-
+# plt.show(block=True)
