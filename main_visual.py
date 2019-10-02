@@ -14,7 +14,7 @@ random.seed(4)
 
 
 # ---------- PART 1: Globals
-plt.rcParams['savefig.bbox'] = 'tight'
+# plt.rcParams['savefig.bbox'] = 'tight'
 n_agents = 20
 my_dpi = 96
 Writer = matplotlib.animation.writers['ffmpeg']
@@ -28,8 +28,8 @@ ax = plt.subplot()
 ax.imshow(img,extent=[-15,15,-10,10])
 ax.set_xlim(-15,15)
 ax.set_ylim(-10,10)
-ax.axis('tight')
-# ax.axis('off')
+# ax.axis('tight')
+ax.axis('off')
 plt.hsv()
 SF_GPS = (37.773972,-122.431297)
 prev_time= 0
@@ -63,42 +63,47 @@ def update(i):
                     vehicle_array.append(Aircraft(loc=v_q[1],POV_center=SF_GPS,col=(0,1,0),ax=ax,track=v_q[2],track_col=my_palette(j),land_tower=v_q[3],land_wp=v_q[4]))
                     verts.findTower_ind(v_q[5]).add_vehicle(vehicle_array[-1])
                     j += 1
-    if i == 280:
-        pass
+
     artist_array = []
     landed_drones = []
     for t_i in verts.towers:
         if t_i.allocating_flag:
-            if t_i.no_active == 0:
-                t_i.queue_full = True
-                t_i.activeRequest()
+            # if t_i.avail_slots > 0:
+            t_i.queue_full = True
+            # t_i.activeRequest()
+            t_i.clearRequest()
+
+    clear_requests = []
+    for t_i in verts.towers:
+        for ind,v_ind in enumerate(t_i.vehicle_array):
+            # v_i = t_i.vehicle_array[v_ind]
+            if t_i.active_request:
+                if ind+1 in t_i.active_request['Allocate']:
+                    land_s = verts.array[t_i.landWaypoint(ind)].loc_xy
+                    clear_requests.append(t_i)
+                    # verts.findTower_ind(v_i.land_wp).no_active += 1
+            artist_array += t_i.vehicle_array[v_ind].simulate(dt, land_signal=land_s, operating_number=list(t_i.vehicle_array.values()).index(t_i.vehicle_array[v_ind]))
+        # if v_i.loitering:
+        #     loiter_dict[verts.findTower_ind(v_i.land_wp)].add(verts.findTower_ind(v_i.land_wp).vehicle_index[v_i])
+        #     # v_i.loitering = False
+            land_s = False
+            if t_i.vehicle_array[v_ind].kill:
+                landed_drones.append(t_i.vehicle_array[v_ind])
+                # loiter_dict[t_i.discard(verts.findTower_ind(v_i.land_wp).vehicle_index[v_i])
+                # assert verts.findTower_ind(v_i.land_wp).no_active >= 0
+
+    for v_i in landed_drones:
+        verts.findTower_ind(v_i.land_wp).remove_vehicle(v_i)
+        verts.findTower_ind(v_i.land_wp).requestLanded()
+        vehicle_array.remove(v_i)
+
+    # for c_i in clear_requests:
+    #     c_i.no_active = clear_requests.count(c_i)
+    #     c_i.avail_slots = 3-c_i.no_active
 
     for t_i in verts.towers:
         out_art = t_i.towerUpdate()
         if out_art: artist_array.append(out_art)
-    clear_requests = []
-    for ind, v_i in enumerate(vehicle_array):
-        if verts.findTower_ind(v_i.land_wp).active_request:
-            if ind+1 in verts.findTower_ind(v_i.land_wp).active_request['Allocate']:
-                land_s = verts.array[verts.findTower_ind(v_i.land_wp).landWaypoint(ind)].loc_xy
-                clear_requests.append(verts.findTower_ind(v_i.land_wp))
-                # verts.findTower_ind(v_i.land_wp).no_active += 1
-        artist_array += v_i.simulate(dt, land_signal=land_s, operating_number=len(vehicle_array))
-        if v_i.loitering:
-            loiter_dict[verts.findTower_ind(v_i.land_wp)].add(verts.findTower_ind(v_i.land_wp).vehicle_index[v_i])
-            v_i.loitering = False
-        land_s = False
-        if v_i.kill:
-            verts.findTower_ind(v_i.land_wp).requestLanded()
-            landed_drones.append(v_i)
-            loiter_dict[verts.findTower_ind(v_i.land_wp)].discard(verts.findTower_ind(v_i.land_wp).vehicle_index[v_i])
-            assert verts.findTower_ind(v_i.land_wp).no_active >= 0
-    for c_i in clear_requests:
-        c_i.no_active = clear_requests.count(c_i)
-
-    for v_i in landed_drones:
-        verts.findTower_ind(v_i.land_wp).remove_vehicle(v_i)
-        vehicle_array.remove(v_i)
     # f = open('loiter_log.txt',"a")
     # f.write(str(i) + "|\t")
     # for l_i in loiter_dict:
@@ -167,8 +172,8 @@ else:
         vehicle_array[v_i] = Aircraft(loc=tuple(verts.array[policy[v_i][0][0]].loc_gps)+(100,), POV_center=SF_GPS,col=(0,1,0),ax=ax,track=track,track_col=my_palette(i))
         i+=1
 
-# ani = FuncAnimation(fig, update, frames=1500, interval=0.04, blit=True,repeat=False)
-ani = FuncAnimation(fig, update, frames=1500, interval=0.04,repeat=False)
-ani.save('Two_tower_allocation_decen.mp4',writer = writer)
-# plt.show(block=True)
+ani = FuncAnimation(fig, update, frames=500, interval=0.04, blit=True,repeat=False)
+# ani = FuncAnimation(fig, update, frames=1000, interval=0.04,repeat=False)
+# ani.save('Two_tower_allocation_decen.mp4',writer = writer)
+plt.show(block=True)
 # plt.show(block=True)

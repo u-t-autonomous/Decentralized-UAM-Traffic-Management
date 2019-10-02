@@ -21,7 +21,7 @@ class UpdateablePatchCollection(collections.PatchCollection):
 
 class Aircraft():
 
-    def __init__(self, loc=(0,0,0), col=(0,0,0), track=None, POV_center=(0,0), ax=None, speed=0.05, track_col=(1,1,1), launch_time=0, land_tower=None, land_wp = None):
+    def __init__(self, loc=(0,0,0), col=(0,0,0), track=None, POV_center=(0,0), ax=None, speed=0.25, track_col=(1,1,1), launch_time=0, land_tower=None, land_wp = None):
         self.map_center = POV_center
         self.scale = [1.0/1287500,1.0/462102]
         self.axis = ax
@@ -153,7 +153,7 @@ class Aircraft():
             self.loitering = True
 
     def land(self,wp):
-        self.speed = 0.2
+        self.speed = 0.5
         self.updateColor((1.0, 1.0, 0))
         self.assignLanding(wp)
         self.loitering = False
@@ -191,10 +191,11 @@ class Aircraft():
                     if temp_track[0] != temp_track[1]:
                         temp_track[0] = [self.loc[0], self.loc[1]]
                     out_art += self.update_track(temp_track)
-            elif isinstance(self.policy,list) and not self.land_flag:
+            elif isinstance(self.policy,list):
                 temp_track = self.policy
                 if temp_track[0] != temp_track[1]:
                     temp_track[0] = [self.loc[0], self.loc[1]]
+                    temp_track[1] = self.track[1]
                 out_art += self.update_track(temp_track)
         if land_signal:
             self.land_flag = True
@@ -202,7 +203,7 @@ class Aircraft():
         self.world_time += time
         if self.stop_active:
             self.stopped_time += 1
-        if self.stopped_time > 8:
+        if self.stopped_time > 5:
             out_art = self.removeAircraft()
         return out_art
 

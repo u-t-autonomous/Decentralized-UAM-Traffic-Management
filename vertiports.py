@@ -113,6 +113,7 @@ class Tower(Vertiports):
         self.vehicle_array = dict()
         self.vehicle_index = dict()
         self.no_slots = 8
+        self.requesting_agents = list(np.zeros(shape=(self.no_slots,),dtype=int))
 
     def plotTower(self, ax, col=(0, 0, 1)):
         self.color = col
@@ -143,25 +144,33 @@ class Tower(Vertiports):
 
     def activeRequest(self):
         assert self.schedule
+        self.requesting_agents = list(np.zeros(shape=(self.no_slots,), dtype=int))
+        for v_i in self.vehicle_array:
+            if self.vehicle_array[v_i].loitering:
+                self.requesting_agents[v_i] = self.allowed_ports.index(self.vehicle_array[v_i].land_wp) + 1
+        ## --- Plug in trace from synthesis here ---
         self.active_request = self.schedule.pop(0)
-        self.avail_slots = self.active_request['Avail']
+        self.avail_slots = 3-len(self.active_request['Allocate'])
+        # self.active_request = None
+        # self.avail_slots = self.active_request['Avail']
         return self.active_request
 
     def clearRequest(self):
         self.active_request = None
 
     def requestLanded(self):
-        self.no_active -= 1
+        self.avail_slots += 1
+        # self.no_active -= 1
 
     def towerUpdate(self):
         if self.allocating_flag:
-            if self.avail_slots - self.no_active == 0:
+            if self.avail_slots == 0:
                 return self.colorTower((1, 0, 0))
-            elif self.avail_slots - self.no_active == 1:
+            elif self.avail_slots == 1:
                 return self.colorTower((1, 0.65, 0))
-            elif self.avail_slots - self.no_active == 2:
+            elif self.avail_slots == 2:
                 return self.colorTower((1, 1, 0))
-            elif self.avail_slots - self.no_active == 3:
+            elif self.avail_slots == 3:
                 return self.colorTower((0, 1, 0))
 
     def landWaypoint(self, ind):
