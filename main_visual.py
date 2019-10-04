@@ -1,6 +1,6 @@
 import json
 import matplotlib
-matplotlib.use('Qt5Agg')
+# matplotlib.use('Qt5Agg')
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import math
@@ -40,7 +40,7 @@ def update(i):
     global prev_time, j, vehicle_queue, verts
     dt = 0.2
     print(i)
-    loiter_dict = dict([[verts.findTower_ind(allowed_ports[2]), set()], [verts.findTower_ind(second_tower[2]), set()]])
+    # loiter_dict = dict([[verts.findTower_ind(allowed_ports[2]), set()], [verts.findTower_ind(second_tower[2]), set()]])
     land_s = False
     # print(open_slots)
     if time_policy:
@@ -70,16 +70,18 @@ def update(i):
         if t_i.allocating_flag:
             # if t_i.avail_slots > 0:
             t_i.queue_full = True
-            # t_i.activeRequest()
-            t_i.clearRequest()
+            t_i.activeRequest()
+
+            # t_i.clearRequest()
 
     clear_requests = []
     for t_i in verts.towers:
         for ind,v_ind in enumerate(t_i.vehicle_array):
             # v_i = t_i.vehicle_array[v_ind]
             if t_i.active_request:
-                if ind+1 in t_i.active_request['Allocate']:
+                if v_ind+1 in t_i.active_request['Allocate']:
                     land_s = verts.array[t_i.landWaypoint(ind)].loc_xy
+                    print(land_s)
                     clear_requests.append(t_i)
                     # verts.findTower_ind(v_i.land_wp).no_active += 1
             artist_array += t_i.vehicle_array[v_ind].simulate(dt, land_signal=land_s, operating_number=list(t_i.vehicle_array.values()).index(t_i.vehicle_array[v_ind]))
@@ -121,8 +123,8 @@ def schedules(filename):
     with open(filename) as fp:
         for line in fp:
             line = line.split(',')
-            if line[2] not in allowed_ports+second_tower:
-                line[2] = random.choice(allowed_ports+second_tower)
+            if line[2] not in allowed_ports+second_tower+third_tower:
+                line[2] = random.choice(allowed_ports+second_tower+third_tower)
             policy[int(float(line[0]))-start_time] = dict({veh_no:line[1:3]})
             vehicles.add(veh_no)
             veh_no += 1
@@ -155,10 +157,12 @@ verts.towerClusters(10)
 verts.plotTowers(ax)
 time_policy = []
 # vehicles, policy = policies('Scenarios/policy.txt')
-allowed_ports = ['WP52','WP555','WP322','WP848']
-second_tower = ['WP802','WP989','WP778','WP308']
+allowed_ports = ['WP52','WP555','WP322']
+second_tower = ['WP802','WP989','WP778']
+third_tower = ['WP483','WP661','WP9']
 verts.findTower_ind(allowed_ports[2]).towerSchedules('Scenarios/test_medium19.csv',allowed_ports)
 verts.findTower_ind(second_tower[2]).towerSchedules('Scenarios/test_medium40_csv.csv',second_tower)
+verts.findTower_ind(third_tower[2]).towerSchedules('Scenarios/test_medium40_csv.csv',third_tower)
 
 vehicles, time_policy = schedules('Scenarios/scn_UAM_testNewVT.trp')
 vehicle_array = []
@@ -172,8 +176,8 @@ else:
         vehicle_array[v_i] = Aircraft(loc=tuple(verts.array[policy[v_i][0][0]].loc_gps)+(100,), POV_center=SF_GPS,col=(0,1,0),ax=ax,track=track,track_col=my_palette(i))
         i+=1
 
-ani = FuncAnimation(fig, update, frames=500, interval=0.04, blit=True,repeat=False)
-# ani = FuncAnimation(fig, update, frames=1000, interval=0.04,repeat=False)
-# ani.save('Two_tower_allocation_decen.mp4',writer = writer)
+# ani = FuncAnimation(fig, update, frames=500, interval=0.04, blit=True,repeat=False)
+ani = FuncAnimation(fig, update, frames=1000,repeat=False)
+ani.save('Two_tower_allocation_decen.mp4',writer = writer)
 plt.show(block=True)
 # plt.show(block=True)
