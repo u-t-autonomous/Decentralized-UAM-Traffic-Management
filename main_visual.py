@@ -159,7 +159,7 @@ time_policy = []
 # vehicles, policy = policies('Scenarios/policy.txt')
 allowed_ports = ['WP52','WP555','WP322']
 second_tower = ['WP802','WP989','WP778']
-third_tower = ['WP483','WP661','WP9']
+third_tower = ['WP94','WP661','WP9']
 verts.findTower_ind(allowed_ports[2]).towerSchedules('Scenarios/test_medium19.csv',allowed_ports)
 verts.findTower_ind(second_tower[2]).towerSchedules('Scenarios/test_medium40_csv.csv',second_tower)
 verts.findTower_ind(third_tower[2]).towerSchedules('Scenarios/test_medium40_csv.csv',third_tower)
@@ -176,8 +176,8 @@ else:
         vehicle_array[v_i] = Aircraft(loc=tuple(verts.array[policy[v_i][0][0]].loc_gps)+(100,), POV_center=SF_GPS,col=(0,1,0),ax=ax,track=track,track_col=my_palette(i))
         i+=1
 
-# ani = FuncAnimation(fig, update, frames=500, interval=0.04, blit=True,repeat=False)
-ani = FuncAnimation(fig, update, frames=1000,repeat=False)
-ani.save('Two_tower_allocation_decen.mp4',writer = writer)
+ani = FuncAnimation(fig, update, frames=500, interval=0.04, blit=True,repeat=False)
+# ani = FuncAnimation(fig, update, frames=1000,repeat=False)
+# ani.save('Two_tower_allocation_decen.mp4',writer = writer)
 plt.show(block=True)
 # plt.show(block=True)

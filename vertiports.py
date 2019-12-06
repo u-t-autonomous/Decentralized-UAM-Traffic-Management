@@ -227,7 +227,7 @@ class Scheduler(Tower):
 
         argv = ['cursesSimulator.py', specfilename]
         specFile = " ".join(argv[1:])
-        slugsLink = argv[0][0:argv[0].rfind("cursesSimulator.py")] + "/Users/suda/Documents/slugs/src/slugs"
+        slugsLink = argv[0][0:argv[0].rfind("cursesSimulator.py")] + "~/slugs/src/slugs"
         self.slugsProcess = subprocess.Popen(slugsLink + " --interactiveStrategy " + specFile, shell=True, bufsize=1048000,
                                         stdin=subprocess.PIPE, stdout=subprocess.PIPE)
         # Get input APs
