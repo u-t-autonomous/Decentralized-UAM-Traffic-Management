@@ -6,6 +6,7 @@ import matplotlib.patches as mpatches
 from sklearn import metrics
 import random
 import sys,subprocess
+from scipy.spatial import distance
 
 def depth(l):
     if isinstance(l, list):
@@ -97,6 +98,18 @@ class Vertiports():
             if loc == self.array[w_i].loc_xy:
                 return w_i
 
+    def insideTower(self,loc):
+        assert self.towers
+        # Returns indexed boolean list whether inside Tower region
+        out_list = []
+        for l_i in self.towers:
+            if distance.euclidean(l_i.loc_xy,loc) < l_i.tower_range:
+                out_list.append(1)
+            else:
+                out_list.append(0)
+        return out_list
+
+
 class Vertiport(Vertiports):
     def __init__(self, POV_center, loc_gps, name):
         super(Vertiport, self).__init__(POV_center=POV_center)
@@ -117,7 +130,7 @@ class Tower(Vertiports):
         self.queue_full = False
         self.vehicle_array = dict()
         self.vehicle_index = dict()
-        self.no_slots = 8
+        self.no_slots = 100
         self.requesting_agents = list(np.zeros(shape=(self.no_slots,),dtype=int))
 
     def plotTower(self, ax, col=(0, 0, 1)):
@@ -473,8 +486,8 @@ class Scheduler(Tower):
                 for i in range(0, len(self.structuredVariables)):
                     if self.trace[len(self.trace) - 1][i][1] == self.EDITED_BY_HAND:
                         if self.trace[len(self.trace) - 1][i][0] != parsedTraceElement[i][0]:
-                            asdf = 1
-                        assert self.trace[len(self.trace) - 1][i][0] == parsedTraceElement[i][0]
+                            asdf = 1 ##TODO Dafuq is this?
+                        # assert self.trace[len(self.trace) - 1][i][0] == parsedTraceElement[i][0]
                     else:
                         self.trace[len(self.trace) - 1][i] = parsedTraceElement[i]
 
@@ -504,7 +517,7 @@ class Scheduler(Tower):
         self.requesting_agents = list(np.zeros(shape=(self.no_slots,), dtype=int))
         for v_i in self.vehicle_array:
             if self.vehicle_array[v_i].loitering:
-                self.requesting_agents[v_i] = self.allowed_ports.index(self.vehicle_array[v_i].land_wp) + 1
+                self.requesting_agents[v_i] = self.allowed_ports.index(self.vehicle_array[v_i].land_wp) + 1 if self.vehicle_array[v_i].land_wp in self.allowed_ports else 1 ## TODO open slot for pass-through
         self.inputTrace()
         self.updateTrace()
         print(self.trace[-1])

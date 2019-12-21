@@ -5,6 +5,7 @@ import matplotlib.collections as collections
 import matplotlib.transforms as transforms
 import numpy as np
 from scipy.spatial import distance
+from vertiports import Scheduler
 
 class UpdateablePatchCollection(collections.PatchCollection):
     def __init__(self,patches,*args,**kwargs):
@@ -21,7 +22,7 @@ class UpdateablePatchCollection(collections.PatchCollection):
 
 class Aircraft():
 
-    def __init__(self, loc=(0,0,0), col=(0,0,0), track=None, POV_center=(0,0), ax=None, speed=0.25, track_col=(1,1,1), launch_time=0, land_tower=None, land_wp = None):
+    def __init__(self, loc=(0,0,0), col=(0,0,0), track=None, POV_center=(0,0), ax=None, speed=0.25, track_col=(1,1,1), launch_time=0, land_tower=None, land_wp = None,verts=None):
         self.map_center = POV_center
         self.scale = [1.0/1287500,1.0/462102]
         self.axis = ax
@@ -38,7 +39,11 @@ class Aircraft():
         self.stop_active = False
         self.stopped_time = 0
         self.loitering = False
-        self.loiter_flag= False
+        self.loiter_flag = False
+        self.verts = verts
+        self.circle_memory = self.verts.insideTower(self.loc[0:1])
+        sched_hold = np.array([True if isinstance(t_i, Scheduler) else False for t_i in self.verts.towers])
+        self.scheduler_ind = np.arange(len(self.verts.towers))[np.logical_and(self.circle_memory,sched_hold)]
         if track:
             self.policy = track
             if isinstance(track[0],list):
@@ -50,6 +55,7 @@ class Aircraft():
             self.land_tower = land_tower
             self.land_wp = land_wp
         self.land_flag = False
+        self.pass_flag = [False if isinstance(t_i,Scheduler) else True for t_i in self.verts.towers]
         self.kill = False
 
     def GPS_2_coord(self,loc_gps):
@@ -94,11 +100,13 @@ class Aircraft():
                 if idx == 0:
                     self.track_times.append(time_lapse)
                 else:
+                    ## Landing Flag
                     if distance.euclidean(t_i,track[idx - 1]) < 1e-1:
                         self.speed = 0
                         self.track_times.append(time_lapse+1e6)
                         artist_array += self.updateColor((1, 0, 0))
                         self.stop_active = True
+                    ## Approaching flag
                     elif distance.euclidean(t_i,track[idx - 1]) < 1e-0 and self.land_flag:
                         self.speed /= 2
                         time_lapse += distance.euclidean(t_i, track[idx - 1]) / self.speed
@@ -108,25 +116,6 @@ class Aircraft():
                         self.track_times.append(time_lapse)
                         # artist_array += self.updateColor((1, 0.6, 0))
                 self.track.append(t_i)
-        # else:
-            # print('No track')
-            # time_lapse = self.world_time
-            # for idx, t_i in enumerate(self.track):
-            #     if idx == 0:
-            #         self.track_times[idx] = time_lapse
-            #     else:
-            #         if distance.euclidean(t_i, self.track[idx - 1]) < 1e-1 * self.speed:
-            #             self.speed = 0
-            #             self.track_times[idx] = time_lapse + 1e6
-            #             artist_array += self.updateColor((1, 0, 0))
-            #             self.stop_active = True
-            #         elif distance.euclidean(t_i, self.track[idx - 1]) < 5e-1 and self.land_flag:
-            #             self.speed /= 2
-            #             time_lapse += distance.euclidean(t_i, self.track[idx - 1]) / self.speed
-            #             self.track_times[idx] = time_lapse
-            #         else:
-            #             time_lapse += distance.euclidean(t_i, self.track[idx - 1]) / self.speed
-            #             self.track_times[idx] = time_lapse
 
         if len(self.track)>2:
             pass
@@ -160,15 +149,19 @@ class Aircraft():
 
     def simulate(self, time,land_signal=None,operating_number=None):
         track_x, track_y = map(list, zip(*self.track))
+        self.circle_memory = self.verts.insideTower(self.loc[0:1])
+        self.activeScheduler()
         near_path_x = track_x[0:2]
         near_path_y = track_y[0:2]
         if self.land_tower:
-            if distance.euclidean(self.track[0],self.land_tower[0]) < self.land_tower[1]:
-                if not self.land_flag:
-                    self.loiter()
-                    self.loiter_flag = True
-                else:
-                    pass
+            if all(np.array(self.circle_memory)[~np.array(self.pass_flag)]):
+                self.loiter()
+                self.loiter_flag = True
+            elif any(np.array(self.circle_memory)[~np.array(self.pass_flag)]):
+                land_signal = self.verts.array[self.land_wp].loc_xy[0:2]
+            else:
+                pass
+
         path_angle = np.arctan2(near_path_y[1]-near_path_y[0],near_path_x[1]-near_path_x[0])
         dxdy = [self.speed*time*np.cos(path_angle), self.speed*time*np.sin(path_angle)]
         out_art = self.moveAircraft(dxdy)
@@ -285,10 +278,18 @@ class Aircraft():
         self.kill = True
         return artist_array
 
-    def assignLanding(self,wp):
+    def assignLanding(self,wp=None):
         temp_track = self.track
         # if wp in temp_track:
         #     temp_track[-1] = wp
         # else:
-        temp_track = [(self.loc[0],self.loc[1]),wp]
+        if wp:
+            temp_track = [(self.loc[0],self.loc[1]),wp]
+        else:
+            temp_track = [(self.loc[0],self.loc[1]),self.verts.array[self.land_wp]]
+
         self.update_track(temp_track)
+
+    def activeScheduler(self):
+        sched_hold = np.array([True if isinstance(t_i, Scheduler) else False for t_i in self.verts.towers])
+        self.scheduler_ind = np.arange(len(self.verts.towers))[np.logical_and(self.circle_memory,sched_hold)]

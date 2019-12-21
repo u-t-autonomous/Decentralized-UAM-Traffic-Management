@@ -50,8 +50,9 @@ def update(i):
             for v_i in time_policy[t_i]:
                 if len(verts.findTower_ind(time_policy[t_i][v_i][-1]).vehicle_array) < 8:
                     track = verts.convertTrack(time_policy[t_i][v_i])
-                    vehicle_array.append(Aircraft(loc=tuple(verts.array[time_policy[t_i][v_i][0]].loc_gps)+(100,),POV_center=SF_GPS,col=(0,1,0),ax=ax,track=track,track_col=my_palette(j),land_tower=verts.findTower(time_policy[t_i][v_i][-1]),land_wp=time_policy[t_i][v_i][-1]))
-                    verts.findTower_ind(time_policy[t_i][v_i][-1]).add_vehicle(vehicle_array[-1])
+                    vehicle_array.append(Aircraft(loc=tuple(verts.array[time_policy[t_i][v_i][0]].loc_gps)+(100,),POV_center=SF_GPS,col=(0,1,0),ax=ax,track=track,track_col=my_palette(j),land_tower=verts.findTower(time_policy[t_i][v_i][-1]),land_wp=time_policy[t_i][v_i][-1],verts=verts))
+                    for s_k in vehicle_array[-1].scheduler_ind:
+                        verts.towers[s_k].add_vehicle(vehicle_array[-1])
                     j += 1
                 else:
                     track = verts.convertTrack(time_policy[t_i][v_i])
@@ -60,51 +61,64 @@ def update(i):
             for v_i,v_q in enumerate(vehicle_queue):
                 if len(verts.findTower_ind(v_q[5]).vehicle_array) < 8:
                     v_q = vehicle_queue.pop(v_i)
-                    vehicle_array.append(Aircraft(loc=v_q[1],POV_center=SF_GPS,col=(0,1,0),ax=ax,track=v_q[2],track_col=my_palette(j),land_tower=v_q[3],land_wp=v_q[4]))
-                    verts.findTower_ind(v_q[5]).add_vehicle(vehicle_array[-1])
+                    vehicle_array.append(Aircraft(loc=v_q[1],POV_center=SF_GPS,col=(0,1,0),ax=ax,track=v_q[2],track_col=my_palette(j),land_tower=v_q[3],land_wp=v_q[4],verts=verts))
+                    for s_k in vehicle_array[-1].scheduler_ind:
+                        verts.towers[s_k].add_vehicle(vehicle_array[-1])
                     j += 1
 
     artist_array = []
     landed_drones = []
-    for t_i in verts.towers:
-        if t_i.allocating_flag:
+    for t_a in verts.towers:
+        if t_a.allocating_flag:
             # if t_i.avail_slots > 0:
-            t_i.queue_full = True
-            t_i.activeRequest()
+            t_a.queue_full = True
+            t_a.activeRequest()
+            print("Avail Slots: {}".format(t_a.avail_slots))
 
             # t_i.clearRequest()
 
-    clear_requests = []
-    for t_i in verts.towers:
-        for ind,v_ind in enumerate(t_i.vehicle_array):
-            # v_i = t_i.vehicle_array[v_ind]
-            if t_i.active_request:
-                if v_ind+1 in t_i.active_request['Allocate']:
-                    land_s = verts.array[t_i.landWaypoint(ind)].loc_xy
-                    print(land_s)
-                    clear_requests.append(t_i)
-                    # verts.findTower_ind(v_i.land_wp).no_active += 1
-            artist_array += t_i.vehicle_array[v_ind].simulate(dt, land_signal=land_s, operating_number=list(t_i.vehicle_array.values()).index(t_i.vehicle_array[v_ind]))
-        # if v_i.loitering:
-        #     loiter_dict[verts.findTower_ind(v_i.land_wp)].add(verts.findTower_ind(v_i.land_wp).vehicle_index[v_i])
-        #     # v_i.loitering = False
-            land_s = False
-            if t_i.vehicle_array[v_ind].kill:
-                landed_drones.append(t_i.vehicle_array[v_ind])
-                # loiter_dict[t_i.discard(verts.findTower_ind(v_i.land_wp).vehicle_index[v_i])
-                # assert verts.findTower_ind(v_i.land_wp).no_active >= 0
 
+    land_signals = dict([[v_i,None] for v_i in vehicle_array])
+
+    ## Allocate pass-throughs/landings
+    for t_ind,t_a in enumerate(verts.towers):
+        for ind,v_ind in enumerate(t_a.vehicle_array):
+            v_i = t_a.vehicle_array[v_ind]
+            if t_a.active_request:
+                if v_ind+1 in t_a.active_request['Allocate']:
+                    v_i.pass_flag[t_ind] = True
+                    # land_s = verts.array[v_i.land_wp].loc_xy # verts.array[t_i.landWaypoint(ind)].loc_xy ## TODO fix with pass-throughs
+                    # print(land_s)
+                    # land_signals[v_i] = land_s
+
+    for v_i in vehicle_array:
+        artist_array += v_i.simulate(dt, land_signal=land_signals[v_i])
+        if v_i.kill:
+            landed_drones.append(v_i)
+
+    # Remove landing drones
     for v_i in landed_drones:
-        verts.findTower_ind(v_i.land_wp).remove_vehicle(v_i)
-        verts.findTower_ind(v_i.land_wp).requestLanded()
+        for t_a in v_i.scheduler_ind:
+            if v_i in verts.towers[t_a].vehicle_array.values():
+                verts.towers[t_a].remove_vehicle(v_i)
+                verts.towers[t_a].requestLanded()
         vehicle_array.remove(v_i)
 
-    # for c_i in clear_requests:
-    #     c_i.no_active = clear_requests.count(c_i)
-    #     c_i.avail_slots = 3-c_i.no_active
+    ## Add vehicles to towers if not in
+    for v_i in vehicle_array:
+        for t_a in v_i.scheduler_ind:
+            if v_i not in verts.towers[t_a].vehicle_array.values():
+                verts.towers[t_a].add_vehicle(v_i)
 
-    for t_i in verts.towers:
-        out_art = t_i.towerUpdate()
+    for t_ind,t_a in enumerate(verts.towers):
+        for v_i in t_a.vehicle_array:
+            if verts.insideTower(t_a.vehicle_array[v_i].loc[0:1])[t_ind] == 0:
+                t_a.remove_vehicle(v_i)
+                t_a.requestLanded()
+
+
+    for t_a in verts.towers:
+        out_art = t_a.towerUpdate()
         if out_art: artist_array.append(out_art)
     # f = open('loiter_log.txt',"a")
     # f.write(str(i) + "|\t")
@@ -173,10 +187,14 @@ if time_policy:
 else:
     for v_i in vehicles:
         track = verts.convertTrack(policy[v_i])
-        vehicle_array[v_i] = Aircraft(loc=tuple(verts.array[policy[v_i][0][0]].loc_gps)+(100,), POV_center=SF_GPS,col=(0,1,0),ax=ax,track=track,track_col=my_palette(i))
+        vehicle_array[v_i] = Aircraft(loc=tuple(verts.array[policy[v_i][0][0]].loc_gps)+(100,), POV_center=SF_GPS,col=(0,1,0),ax=ax,track=track,track_col=my_palette(i),verts=verts)
         i+=1
 
-ani = FuncAnimation(fig, update, frames=500, interval=0.04, blit=True,repeat=False)
+for i in range(500):
+    update(i)
+
+
+# ani = FuncAnimation(fig, update, frames=500, interval=0.04, blit=True,repeat=False)
 # ani = FuncAnimation(fig, update, frames=1000,repeat=False)
 # ani.save('Two_tower_allocation_decen.mp4',writer = writer)
 plt.show(block=True)
