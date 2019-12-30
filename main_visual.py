@@ -18,7 +18,7 @@ random.seed(4)
 n_agents = 20
 my_dpi = 96
 Writer = matplotlib.animation.writers['ffmpeg']
-writer = Writer(fps=33, metadata=dict(artist='Me'), bitrate=1800)
+writer = Writer(fps=24, metadata=dict(artist='Me'), bitrate=1800)
 fig = plt.figure(figsize=(2000/my_dpi, 1600/my_dpi), dpi=my_dpi,frameon=False)
 fig.set_tight_layout('True')
 img = plt.imread("mapimage.jpeg")
@@ -51,6 +51,7 @@ def update(i):
                 if len(verts.findTower_ind(time_policy[t_i][v_i][-1]).vehicle_array) < 8:
                     track = verts.convertTrack(time_policy[t_i][v_i])
                     vehicle_array.append(Aircraft(loc=tuple(verts.array[time_policy[t_i][v_i][0]].loc_gps)+(100,),POV_center=SF_GPS,col=(0,1,0),ax=ax,track=track,track_col=my_palette(j),land_tower=verts.findTower(time_policy[t_i][v_i][-1]),land_wp=time_policy[t_i][v_i][-1],verts=verts))
+                    if len(vehicle_array[-1].scheduler_ind)> 0:vehicle_array[-1].loiter()
                     for s_k in vehicle_array[-1].scheduler_ind:
                         verts.towers[s_k].add_vehicle(vehicle_array[-1])
                     j += 1
@@ -62,6 +63,7 @@ def update(i):
                 if len(verts.findTower_ind(v_q[5]).vehicle_array) < 8:
                     v_q = vehicle_queue.pop(v_i)
                     vehicle_array.append(Aircraft(loc=v_q[1],POV_center=SF_GPS,col=(0,1,0),ax=ax,track=v_q[2],track_col=my_palette(j),land_tower=v_q[3],land_wp=v_q[4],verts=verts))
+                    if len(vehicle_array[-1].scheduler_ind) > 0: vehicle_array[-1].loiter()
                     for s_k in vehicle_array[-1].scheduler_ind:
                         verts.towers[s_k].add_vehicle(vehicle_array[-1])
                     j += 1
@@ -73,7 +75,7 @@ def update(i):
             # if t_i.avail_slots > 0:
             t_a.queue_full = True
             t_a.activeRequest()
-            print("Avail Slots: {}".format(t_a.avail_slots))
+            # print("Avail Slots: {}".format(t_a.avail_slots))
 
             # t_i.clearRequest()
 
@@ -111,10 +113,13 @@ def update(i):
                 verts.towers[t_a].add_vehicle(v_i)
 
     for t_ind,t_a in enumerate(verts.towers):
+        pass_vehicles = []
         for v_i in t_a.vehicle_array:
-            if verts.insideTower(t_a.vehicle_array[v_i].loc[0:1])[t_ind] == 0:
-                t_a.remove_vehicle(v_i)
-                t_a.requestLanded()
+            if verts.insideTower(t_a.vehicle_array[v_i].loc[0:2])[t_ind] == 0:
+                pass_vehicles.append(t_a.vehicle_array[v_i])
+        for v_i in pass_vehicles:
+            t_a.remove_vehicle(v_i)
+            t_a.requestLanded()
 
 
     for t_a in verts.towers:
@@ -189,13 +194,13 @@ else:
         track = verts.convertTrack(policy[v_i])
         vehicle_array[v_i] = Aircraft(loc=tuple(verts.array[policy[v_i][0][0]].loc_gps)+(100,), POV_center=SF_GPS,col=(0,1,0),ax=ax,track=track,track_col=my_palette(i),verts=verts)
         i+=1
+#
+# for i in range(500):
+#     update(i)
 
-for i in range(500):
-    update(i)
 
-
-# ani = FuncAnimation(fig, update, frames=500, interval=0.04, blit=True,repeat=False)
+ani = FuncAnimation(fig, update, frames=500, interval=0.04, blit=True,repeat=False)
 # ani = FuncAnimation(fig, update, frames=1000,repeat=False)
-# ani.save('Two_tower_allocation_decen.mp4',writer = writer)
-plt.show(block=True)
+ani.save('Pass_through_allocation_decen.mp4',writer = writer)
+# plt.show(block=True)
 # plt.show(block=True)
