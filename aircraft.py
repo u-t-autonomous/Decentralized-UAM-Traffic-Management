@@ -85,7 +85,7 @@ class Aircraft():
             self.track.append(t_i)
         if self.track_plotting:
             x_points, y_points = map(list, zip(*self.track))
-            l_i, = self.axis.plot(x_points, y_points, color=self.track_col, alpha=0.6, linewidth=3)
+            l_i, = self.axis.plot(x_points, y_points, color=self.track_col, alpha=0.8, linewidth=4)
             self.track_plot = l_i
 
     def update_track(self,track=None):
@@ -156,7 +156,7 @@ class Aircraft():
             if len(self.scheduler_ind)==0:
                 pass
             else:
-                if any(~np.array(self.pass_flag)[self.scheduler_ind]):
+                if all(~np.array(self.pass_flag)[self.scheduler_ind]):
                     self.loiter()
                     self.loiter_flag = True
                 else:
