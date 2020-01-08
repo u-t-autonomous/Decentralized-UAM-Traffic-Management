@@ -21,7 +21,7 @@ n_agents = 20
 my_dpi = 96
 Writer = matplotlib.animation.writers['ffmpeg']
 writer = Writer(fps=8, metadata=dict(artist='Me'), bitrate=1800)
-# fig = texfig.figure(width=3.3*scale_factor,ratio=1, dpi=my_dpi)
+# fig = texfig.figure(width=2000/my_dpi,ratio=1.25, dpi=my_dpi)
 fig = plt.figure(figsize=(2000/my_dpi, 1600/my_dpi), dpi=my_dpi,frameon=False)
 fig.set_tight_layout('True')
 img = plt.imread("mapimage.jpeg")
@@ -202,13 +202,8 @@ else:
 		vehicle_array[v_i] = Aircraft(loc=tuple(verts.array[policy[v_i][0][0]].loc_gps)+(100,), POV_center=SF_GPS,col=(0,1,0),ax=ax,track=track,track_col=my_palette(i),verts=verts)
 		i+=1
 #
-# for i in range(500):
-#     update(i)
+for i in range(500):
+	update(i)
+	if i in range(100,150):
+		fig.savefig("Data/images/sequence_" + str(i)+".eps")
 
-
-
-ani = FuncAnimation(fig, update, frames=500, interval=0.02, blit=True,repeat=False)
-# ani = FuncAnimation(fig, update, frames=1000,repeat=False)
-ani.save('Pass_through_allocation_Any.mp4',writer = writer)
-plt.show(block=True)
-# plt.show(block=True)

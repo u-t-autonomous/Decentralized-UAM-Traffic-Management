@@ -6,6 +6,7 @@ import matplotlib.patches as mpatches
 from sklearn import metrics
 import random
 import sys,subprocess
+from scipy.spatial import distance
 
 def depth(l):
     if isinstance(l, list):
@@ -70,9 +71,9 @@ class Vertiports():
             tower_range = max([np.linalg.norm(np.subtract(i, c_i)) for i in zip(towers['x'][kmeans.labels_ == i], towers['y'][kmeans.labels_ == i])])
             # self.towers.append(Tower(self.map_center,c_i,tower_range,sub_names))
             if 'WP52' in sub_names or 'WP308' in sub_names or 'WP9' in sub_names:
-                self.towers.append(Scheduler(self.map_center, c_i, tower_range, sub_names, specfilename='request_handler_example.slugsin'))
+                self.towers.append(Scheduler(self.map_center, c_i, tower_range, sub_names, specfilename='request_handler_example.slugsin', sub_ind=i))
             else:
-                self.towers.append(Tower(self.map_center, c_i, tower_range, sub_names))
+                self.towers.append(Tower(self.map_center, c_i, tower_range, sub_names,i))
         # print(centroids)
 
     def plotTowers(self,ax):
@@ -97,6 +98,18 @@ class Vertiports():
             if loc == self.array[w_i].loc_xy:
                 return w_i
 
+    def insideTower(self,loc):
+        assert self.towers
+        # Returns indexed boolean list whether inside Tower region
+        out_list = []
+        for l_i in self.towers:
+            if distance.euclidean(l_i.loc_xy,loc) < l_i.tower_range:
+                out_list.append(1)
+            else:
+                out_list.append(0)
+        return out_list
+
+
 class Vertiport(Vertiports):
     def __init__(self, POV_center, loc_gps, name):
         super(Vertiport, self).__init__(POV_center=POV_center)
@@ -105,7 +118,7 @@ class Vertiport(Vertiports):
         self.name = name
 
 class Tower(Vertiports):
-    def __init__(self, map_center, centroid, tower_range, sub_names):
+    def __init__(self, map_center, centroid, tower_range, sub_names,sub_ind):
         super(Tower, self).__init__(POV_center=map_center)
         self.loc_xy = tuple(centroid)
         self.loc_GPS = super().coord_2_GPS(centroid)
@@ -113,12 +126,14 @@ class Tower(Vertiports):
         self.attached_vertiports = sub_names
         self.no_active = 0
         self.avail_slots = 3
+        self.max_slots = 3
         self.allocating_flag = False
         self.queue_full = False
         self.vehicle_array = dict()
         self.vehicle_index = dict()
         self.no_slots = 8
         self.requesting_agents = list(np.zeros(shape=(self.no_slots,),dtype=int))
+        self.tower_ind = sub_ind
 
     def plotTower(self, ax, col=(0, 0, 1)):
         self.color = col
@@ -168,6 +183,7 @@ class Tower(Vertiports):
 
     def requestLanded(self):
         self.avail_slots += 1
+        self.avail_slots = min(self.avail_slots,self.max_slots)
         # self.no_active -= 1
 
     def towerUpdate(self):
@@ -180,6 +196,9 @@ class Tower(Vertiports):
                 return self.colorTower((1, 1, 0))
             elif self.avail_slots == 3:
                 return self.colorTower((0, 1, 0))
+            else:
+                print("Avail Slots issue {}".format(self.avail_slots))
+                raise
 
     def landWaypoint(self, ind):
         return self.allowed_ports[self.active_request['Requests'][ind - 1] - 1]
@@ -187,9 +206,15 @@ class Tower(Vertiports):
     def add_vehicle(self,veh):
         open_slots = list(range(self.no_slots))
         for k_i in self.vehicle_array:
-            open_slots.remove(k_i)
-        self.vehicle_array.update({random.choice(open_slots):veh})
-        self.vehicle_index = {v:k for k,v in self.vehicle_array.items()}
+            if k_i < self.no_slots:
+                open_slots.remove(k_i)
+        if len(open_slots) > 0:
+            self.vehicle_array.update({random.choice(open_slots):veh})
+            self.vehicle_index = {v:k for k,v in self.vehicle_array.items()}
+        else:
+            self.vehicle_array.update({len(self.vehicle_array.keys()):veh})
+            self.vehicle_index = {v:k for k,v in self.vehicle_array.items()}
+
 
     def remove_vehicle(self,veh):
         del_keys = []
@@ -197,14 +222,19 @@ class Tower(Vertiports):
             if veh == self.vehicle_array[r_v]:
                 del_keys.append(r_v)
         for d_k in del_keys:
-            del self.vehicle_array[d_k]
+            if len(self.vehicle_array)>self.no_slots:
+                del self.vehicle_array[d_k]
+                self.vehicle_array.update({d_k:self.vehicle_array.pop(list(self.vehicle_array.keys())[-1])})
+            else:
+                del self.vehicle_array[d_k]
+
         self.vehicle_index = {v: k for k, v in self.vehicle_array.items()}
 
 
 class Scheduler(Tower):
 
-    def __init__(self,map_center, centroid, tower_range, sub_names,specfilename):
-        super().__init__(map_center, centroid, tower_range, sub_names)
+    def __init__(self,map_center, centroid, tower_range, sub_names,specfilename,sub_ind):
+        super().__init__(map_center, centroid, tower_range, sub_names,sub_ind)
 
         # ==================================
         # Start slugs
@@ -473,8 +503,8 @@ class Scheduler(Tower):
                 for i in range(0, len(self.structuredVariables)):
                     if self.trace[len(self.trace) - 1][i][1] == self.EDITED_BY_HAND:
                         if self.trace[len(self.trace) - 1][i][0] != parsedTraceElement[i][0]:
-                            asdf = 1
-                        assert self.trace[len(self.trace) - 1][i][0] == parsedTraceElement[i][0]
+                            asdf = 1 ##TODO Dafuq is this?
+                        # assert self.trace[len(self.trace) - 1][i][0] == parsedTraceElement[i][0]
                     else:
                         self.trace[len(self.trace) - 1][i] = parsedTraceElement[i]
 
@@ -502,9 +532,9 @@ class Scheduler(Tower):
     def activeRequest(self):
         # assert self.schedule
         self.requesting_agents = list(np.zeros(shape=(self.no_slots,), dtype=int))
-        for v_i in self.vehicle_array:
-            if self.vehicle_array[v_i].loitering:
-                self.requesting_agents[v_i] = self.allowed_ports.index(self.vehicle_array[v_i].land_wp) + 1
+        for v_i in list(self.vehicle_array.keys())[0:8]:
+            if not self.vehicle_array[v_i].pass_flag[self.tower_ind]:
+                self.requesting_agents[v_i] = self.allowed_ports.index(self.vehicle_array[v_i].land_wp) + 1 if self.vehicle_array[v_i].land_wp in self.allowed_ports else 1 ## TODO open slot for pass-through
         self.inputTrace()
         self.updateTrace()
         print(self.trace[-1])
