@@ -1,4 +1,4 @@
-#
+# Decentralized Control Synthesis for Air Traffic Management in UAM
 
 ## Suda Bharadwaj, Steven Carr, Natasha Neogi, Ufuk Topcu
 
