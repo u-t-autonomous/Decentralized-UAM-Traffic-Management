@@ -7,4 +7,4 @@ Visualization tools for showing urban air mobility (UAM) traffic management prob
 
 ### Examples on simulated airpsaces
 
-{% include youtubePlayer.html %}
+{% include youtube_player.html %}
