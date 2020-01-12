@@ -15,7 +15,7 @@ In these simulations the <strong>vehicles</strong> are indicated by the followin
 <li>Green - Moving unallocated vehicle.</li>
 </ul>
 
-Furthermore the region inside of a <strong>vertihub</strong> is indicate by a colored ring, the colors have the following meanings
+Furthermore the region inside of a <strong>vertihub</strong> is indicated by a colored ring, the colors have the following meanings
 <ul>
 <li>Blue - Not a scheduling vertihub (uncontrolled regions),</li>
 <li>Green - Three unallocated slots,</li>
